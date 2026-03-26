@@ -17,8 +17,11 @@ export async function GET(request: Request) {
     envProxy ? { prefix: envProxy, encode: true, name: 'env proxy' } : null,
     { prefix: 'https://thingproxy.freeboard.io/fetch/', encode: true, name: 'thingproxy' },
     { prefix: 'https://api.allorigins.win/raw?url=', encode: true, name: 'allorigins' },
-    { prefix: 'https://cors.bridged.cc/', encode: false, name: 'cors.bridged' },
   ].filter(Boolean) as Array<{ prefix: string; encode: boolean; name: string }>;
+
+  if (process.env.ALLOW_UNTRUSTED_REDDIT_PROXY === 'true') {
+    proxyPrefixes.push({ prefix: 'https://cors.bridged.cc/', encode: false, name: 'cors.bridged' });
+  }
 
   function getUserAgent() {
     return (
@@ -137,7 +140,11 @@ export async function GET(request: Request) {
     }
 
     if (!redditBody) {
-      throw new Error(lastError || 'Unknown Reddit fetch failure');
+      throw new Error(
+        `${lastError || 'Unknown Reddit fetch failure'}. ` +
+        'Public proxies may be rate-limited on Vercel. Set REDDIT_PROXY_URL to your own proxy (recommended) and/or ALLOW_UNTRUSTED_REDDIT_PROXY=true if you need cors.bridged. ' +
+        'For a production-grade fix, use authenticated Reddit API credentials and avoid anonymous proxy routes.'
+      );
     }
 
     let data;
