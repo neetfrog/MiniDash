@@ -16,6 +16,11 @@ interface WidgetContextType {
   executeCommand: (command: string, args: string[]) => void;
   refreshKey: number;
   toggleWidget: (id: string) => void;
+  enableWidget: (id: string) => void;
+  disableWidget: (id: string) => void;
+  enableAllWidgets: () => void;
+  disableAllWidgets: () => void;
+  resetWidgets: () => void;
   isEnabled: (id: string) => boolean;
   moveWidget: (id: string, dir: 'up' | 'down') => void;
 }
@@ -97,6 +102,19 @@ export function WidgetProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const enableWidget = useCallback((id: string) => {
+    setWidgets(prev => {
+      if (prev.some(w => w.id === id)) return prev;
+      const found = AVAILABLE_WIDGETS.find(w => w.id === id);
+      if (!found) return prev;
+      return [...prev, found];
+    });
+  }, []);
+
+  const disableWidget = useCallback((id: string) => {
+    setWidgets(prev => prev.filter(w => w.id !== id));
+  }, []);
+
   const isEnabled = useCallback((id: string) => {
     return widgets.some(w => w.id === id);
   }, [widgets]);
@@ -115,6 +133,18 @@ export function WidgetProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const enableAllWidgets = useCallback(() => {
+    setWidgets(AVAILABLE_WIDGETS);
+  }, []);
+
+  const disableAllWidgets = useCallback(() => {
+    setWidgets([]);
+  }, []);
+
+  const resetWidgets = useCallback(() => {
+    setWidgets(DEFAULT_WIDGETS);
+  }, []);
+
   const executeCommand = useCallback((command: string, args: string[]) => {
     const commandMap: Record<string, (args: string[]) => void> = {
       weather: (args) => updateWidgetProps('weather', { defaultLocation: args.join(' ') || 'New York' }),
@@ -123,6 +153,9 @@ export function WidgetProvider({ children }: { children: ReactNode }) {
       hackernews: () => {},
       trending: () => {},
       quote: () => {},
+      enable: (args) => enableWidget(args[0]),
+      disable: (args) => disableWidget(args[0]),
+      toggle: (args) => toggleWidget(args[0]),
     };
 
     const action = commandMap[command];
@@ -133,7 +166,7 @@ export function WidgetProvider({ children }: { children: ReactNode }) {
         setRefreshKey(prev => prev + 1);
       }
     }
-  }, [updateWidgetProps]);
+  }, [updateWidgetProps, enableWidget, disableWidget, toggleWidget]);
 
   const value = {
     widgets,
@@ -143,6 +176,11 @@ export function WidgetProvider({ children }: { children: ReactNode }) {
     executeCommand,
     refreshKey,
     toggleWidget,
+    enableWidget,
+    disableWidget,
+    enableAllWidgets,
+    disableAllWidgets,
+    resetWidgets,
     isEnabled,
     moveWidget,
   };

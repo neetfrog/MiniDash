@@ -5,7 +5,7 @@ import { useWidgets } from '@/context/WidgetContext';
 import styles from './WidgetsManager.module.css';
 
 export default function WidgetsManager() {
-  const { availableWidgets, toggleWidget, isEnabled, widgets, moveWidget } = useWidgets();
+  const { availableWidgets, toggleWidget, isEnabled, widgets, moveWidget, enableAllWidgets, disableAllWidgets, resetWidgets } = useWidgets();
   const [open, setOpen] = useState(false);
 
   return (
@@ -16,6 +16,11 @@ export default function WidgetsManager() {
         <div className={styles.overlay} onClick={() => setOpen(false)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.header}>Widgets</div>
+            <div className={styles.controlRow}>
+              <button className={styles.smallBtn} onClick={() => enableAllWidgets()}>Enable all</button>
+              <button className={styles.smallBtn} onClick={() => disableAllWidgets()}>Disable all</button>
+              <button className={styles.smallBtn} onClick={() => resetWidgets()}>Reset defaults</button>
+            </div>
             <div className={styles.list}>
               {availableWidgets.map(w => {
                 const enabledIndex = widgets.findIndex(x => x.id === w.id);

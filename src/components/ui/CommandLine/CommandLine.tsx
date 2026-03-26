@@ -29,6 +29,10 @@ const COMMANDS = [
   'theme [name] - Change theme (dark, light, retro-green, amber, blue, matrix, solarized-dark, solarized-light)',
   'clear - Clear terminal',
   'exit - Close CLI',
+  'enable [widget] - Enable/hide the widget section',
+  'disable [widget] - Disable/hide the widget section',
+  'toggle [widget] - Toggle widget section visibility',
+  'list - List available widgets',
 ];
 
 export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineProps) {
@@ -156,6 +160,27 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
       case 'quote':
         return { output: 'Fetching random quote...', async: { command: 'quote', args: [] } };
 
+      case 'enable':
+        if (!args.length) {
+          return { output: 'Usage: enable [widget], e.g. enable weather', command: '' };
+        }
+        return { output: `Enabling widget ${args[0]}...`, command: 'enable', args };
+
+      case 'disable':
+        if (!args.length) {
+          return { output: 'Usage: disable [widget], e.g. disable news', command: '' };
+        }
+        return { output: `Disabling widget ${args[0]}...`, command: 'disable', args };
+
+      case 'toggle':
+        if (!args.length) {
+          return { output: 'Usage: toggle [widget], e.g. toggle reddit', command: '' };
+        }
+        return { output: `Toggling widget ${args[0]}...`, command: 'toggle', args };
+
+      case 'list':
+        return { output: 'Available widgets: weather, news, reddit, hackernews, trending, quote, crypto, clocks, todo, systeminfo', command: '' };
+
       case 'theme':
         if (args.length === 0) {
           return { output: `Current theme: ${theme}\nAvailable themes: ${availableThemes.join(', ')}` };
@@ -191,6 +216,10 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
 
     if (result.output) {
       addToHistory(command, result.output);
+    }
+
+    if (result.command) {
+      onCommand(result.command, result.args || []);
     }
 
     setInput('');

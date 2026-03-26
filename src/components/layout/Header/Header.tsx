@@ -3,6 +3,7 @@
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import ClockWidget from '@/components/widgets/ClockWidget';
 import WidgetsManager from '@/components/layout/WidgetsManager/WidgetsManager';
+import { useWidgets } from '@/context/WidgetContext';
 import styles from './Header.module.css';
 
 interface HeaderProps {
@@ -28,6 +29,9 @@ const ASCII_LOGO_MOBILE = `
 └─────────────────────┘`;
 
 export default function Header({ onOpenCli }: HeaderProps) {
+  const { widgets } = useWidgets();
+  const activeFlags = widgets.length > 0 ? widgets.map(w => `--${w.id}`).join(' ') : '--none';
+
   return (
     <header className={styles.header}>
       <div className={styles.logoContainer}>
@@ -50,7 +54,7 @@ export default function Header({ onOpenCli }: HeaderProps) {
       <div className={styles.tagline}>
         <span className={styles.prompt}>$</span>
         <span className={styles.command}>fetch</span>
-        <span className={styles.args}>--weather --news --reddit --hackernews --trending</span>
+        <span className={styles.args}>{activeFlags}</span>
         <span className={styles.cursor}>▋</span>
       </div>
     </header>
