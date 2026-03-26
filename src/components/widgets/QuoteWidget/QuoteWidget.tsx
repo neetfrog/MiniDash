@@ -13,13 +13,28 @@ export default function QuoteWidget() {
 
   async function fetchQuote() {
     try {
-      const response = await fetch('/api/quote');
-      const result: ApiResponse<QuoteOfTheDay> = await response.json();
-      if (result.data) {
-        setQuote(result.data);
+      // Fetch directly from public API instead of backend
+      // Bypasses potential Vercel IP blocking
+      const response = await fetch('https://type.fit/api/quotes', {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Quote service unavailable');
+      }
+
+      const quotes = await response.json();
+      if (Array.isArray(quotes) && quotes.length > 0) {
+        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+        setQuote({
+          text: randomQuote.text,
+          author: randomQuote.author || 'Unknown',
+        });
       }
     } catch (err) {
-      console.error('Failed to fetch quote');
+      console.error('Failed to fetch quote:', err);
     }
   }
 

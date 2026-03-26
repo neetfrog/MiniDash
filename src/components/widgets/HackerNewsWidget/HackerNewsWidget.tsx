@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { HackerNewsItem } from '@/types/api';
 import TerminalBox from '@/components/ui/TerminalBox';
-import { useWidgetData } from '@/hooks/useWidget';
 import styles from './HackerNewsWidget.module.css';
 
 const STORY_TYPES = ['top', 'new', 'best', 'ask', 'show'];
@@ -36,10 +35,67 @@ function getDomain(url: string): string {
 
 export default function HackerNewsWidget() {
   const [storyType, setStoryType] = useState('top');
-  const { data: stories, loading, error } = useWidgetData<HackerNewsItem[]>(
-    `/api/hackernews?type=${storyType}&limit=10`,
-    [storyType]
-  );
+  const [stories, setStories] = useState<HackerNewsItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchStories();
+  }, [storyType]);
+
+  async function fetchStories() {
+    setLoading(true);
+    setError(null);
+    setStories([]);
+
+    try {
+      // Fetch directly from HackerNews Firebase API (no Vercel backend needed)
+      const storiesUrl = `https://hacker-news.firebaseio.com/v0/${storyType}stories.json`;
+      const storiesResponse = await fetch(storiesUrl);
+
+      if (!storiesResponse.ok) {
+        throw new Error('HackerNews API unavailable');
+      }
+
+      const storyIds: number[] = await storiesResponse.json();
+      const topIds = storyIds.slice(0, 10);
+
+      // Fetch individual stories in parallel
+      const storyPromises = topIds.map(async (id) => {
+        try {
+          const itemUrl = `https://hacker-news.firebaseio.com/v0/item/${id}.json`;
+          const itemResponse = await fetch(itemUrl);
+          return itemResponse.json();
+        } catch (err) {
+          return null;
+        }
+      });
+
+      const storyData = await Promise.all(storyPromises);
+      const hnItems: HackerNewsItem[] = storyData
+        .filter((item) => item && item.title)
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          url: item.url || `https://news.ycombinator.com/item?id=${item.id}`,
+          score: item.score || 0,
+          by: item.by || 'unknown',
+          time: item.time,
+          descendants: item.descendants || 0,
+          type: item.type,
+        }));
+
+      if (hnItems.length > 0) {
+        setStories(hnItems);
+      } else {
+        throw new Error('No HackerNews items available');
+      }
+    } catch (err) {
+      setError('Unable to fetch HackerNews data');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <TerminalBox
