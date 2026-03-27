@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { WeatherData, ApiResponse } from '@/types/api';
 
+const DEFAULT_LOCATION = 'London';
+
 // Weather condition mappings for ASCII art
 const conditionIcons: Record<string, string> = {
   Clear: '☀',
@@ -35,14 +37,21 @@ export async function GET(request: Request) {
       // Try IP-based geolocation as fallback
       const forwarded = request.headers.get('x-forwarded-for');
       const realIp = request.headers.get('x-real-ip');
-      const ip = forwarded ? forwarded.split(',')[0] : realIp || '127.0.0.1';
+      const ip = forwarded ? forwarded.split(',')[0] : realIp || '';
+      const ipLookupUrl = !ip || ip.startsWith('127.') || ip === '::1'
+        ? 'https://ipapi.co/json/'
+        : `https://ipapi.co/${ip}/json/`;
 
       try {
-        const ipRes = await fetch(`https://ipapi.co/${ip}/json/`);
+        const ipRes = await fetch(ipLookupUrl);
         if (ipRes.ok) {
           const ipData = await ipRes.json();
           if (ipData.city && ipData.region) {
             location = `${ipData.city}, ${ipData.region}`;
+          } else if (ipData.region && ipData.country_name) {
+            location = `${ipData.region}, ${ipData.country_name}`;
+          } else if (ipData.country_name) {
+            location = ipData.country_name;
           }
         } else {
           console.warn('IP geolocation returned non-ok status:', ipRes.status, await ipRes.text().catch(()=>'<no body>'));
@@ -53,24 +62,26 @@ export async function GET(request: Request) {
     }
 
     if (!location) {
-      // Return a clean 400 error instead of throwing to avoid crashing the route
-      const errResult: ApiResponse<WeatherData> = {
-        data: null,
-        error: 'Unable to determine location. Please provide a location or allow location access in your browser.',
-        timestamp: new Date().toISOString(),
-      };
-      return NextResponse.json(errResult, { status: 400 });
+      // If IP lookup doesn't produce a city/region, fallback to default location (London)
+      location = DEFAULT_LOCATION;
+      console.warn('No IP location data available, using default location:', DEFAULT_LOCATION);
     }
 
     let lat: number | null = null, lon: number | null = null, locationName = '';
 
-    // Check if location is coordinates (lat,lon format)
-    const coordMatch = location.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
-    if (coordMatch) {
-      lat = parseFloat(coordMatch[1]);
-      lon = parseFloat(coordMatch[2]);
-      locationName = location;
+    // If using default location, use hardcoded London coordinates as fallback
+    if (location === DEFAULT_LOCATION) {
+      lat = 51.5074;  // London latitude
+      lon = -0.1278;  // London longitude
+      locationName = DEFAULT_LOCATION;
     } else {
+      // Check if location is coordinates (lat,lon format)
+      const coordMatch = location.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
+      if (coordMatch) {
+        lat = parseFloat(coordMatch[1]);
+        lon = parseFloat(coordMatch[2]);
+        locationName = location;
+      } else {
       // Prefer Open-Meteo's geocoding API first (more permissive for server-side use)
       const omUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1`;
       try {
@@ -97,15 +108,24 @@ export async function GET(request: Request) {
         );
         if (!geocodeResponse.ok) {
           const body = await geocodeResponse.text().catch(() => '<unreadable body>');
-          throw new Error(`Geocoding service unavailable: ${geocodeResponse.status} ${geocodeResponse.statusText} - ${body}`);
+          console.warn(`Nominatim service unavailable: ${geocodeResponse.status} ${geocodeResponse.statusText} - ${body}`);
+        } else {
+          const geocodeData = await geocodeResponse.json();
+          if (geocodeData && geocodeData.length > 0) {
+            lat = parseFloat(geocodeData[0].lat);
+            lon = parseFloat(geocodeData[0].lon);
+            locationName = geocodeData[0].display_name.split(',')[0]; // Get city name
+          }
         }
-        const geocodeData = await geocodeResponse.json();
-        if (!geocodeData || geocodeData.length === 0) {
-          throw new Error('Location not found');
-        }
-        lat = parseFloat(geocodeData[0].lat);
-        lon = parseFloat(geocodeData[0].lon);
-        locationName = geocodeData[0].display_name.split(',')[0]; // Get city name
+      }
+      
+      // Final fallback: if all geocoding failed, use London coordinates
+      if (lat == null || lon == null) {
+        console.warn(`Could not geocode location "${location}", falling back to London`);
+        lat = 51.5074;
+        lon = -0.1278;
+        locationName = DEFAULT_LOCATION;
+      }
       }
     }
 

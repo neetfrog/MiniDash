@@ -94,9 +94,11 @@ export default function WeatherWidget() {
   const [inputValue, setInputValue] = useState('');
   const [locationDetected, setLocationDetected] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(true);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
-  const effectiveLocation = location || DEFAULT_LOCATION;
-  const apiUrl = `/api/weather?location=${encodeURIComponent(effectiveLocation)}`;
+  const apiUrl = location
+    ? `/api/weather?location=${encodeURIComponent(location)}`
+    : '/api/weather';
 
   const { data: weather, loading, error, refetch } = useWidgetData<WeatherData>(
     apiUrl,
@@ -156,8 +158,16 @@ export default function WeatherWidget() {
             }
           },
           (error) => {
-            console.warn('Geolocation error:', error.message);
-            // Keep current location (which may be from IP geolocation)
+            const message = error?.message || 'Unknown geolocation error';
+            console.warn('Geolocation error:', message);
+            setLocationError(`Geolocation failed: ${message}.`);
+
+            if (!location) {
+              // Try fallback by relying on server-side IP lookup in /api/weather
+              updateProps({ location: '' });
+              setInputValue('');
+            }
+
             setLocationDetected(true);
             setDetectingLocation(false);
           },
@@ -168,10 +178,11 @@ export default function WeatherWidget() {
           }
         );
       } else {
-        // No geolocation support; fallback to London
+        // No geolocation support; fetch best effort via backend IP detection
+        setLocationError('Geolocation not supported by browser; using IP-based location fallback.');
         if (!location) {
-          updateProps({ location: DEFAULT_LOCATION });
-          setInputValue(DEFAULT_LOCATION);
+          updateProps({ location: '' });
+          setInputValue('');
         }
         setLocationDetected(true);
         setDetectingLocation(false);
@@ -187,6 +198,8 @@ export default function WeatherWidget() {
   }, [inputValue, updateProps]);
   const status = detectingLocation
     ? 'Detecting your location...'
+    : locationError
+    ? `${locationError} ${weather ? `Last updated: ${new Date(weather.lastUpdated).toLocaleTimeString()}` : ''}`
     : weather
     ? `Last updated: ${new Date(weather.lastUpdated).toLocaleTimeString()}`
     : '';

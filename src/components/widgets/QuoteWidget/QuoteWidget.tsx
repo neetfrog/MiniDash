@@ -13,28 +13,27 @@ export default function QuoteWidget() {
 
   async function fetchQuote() {
     try {
-      // Fetch directly from public API instead of backend
-      // Bypasses potential Vercel IP blocking
-      const response = await fetch('https://type.fit/api/quotes', {
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
+      const response = await fetch('/api/quote');
 
       if (!response.ok) {
         throw new Error('Quote service unavailable');
       }
 
-      const quotes = await response.json();
-      if (Array.isArray(quotes) && quotes.length > 0) {
-        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
-        setQuote({
-          text: randomQuote.text,
-          author: randomQuote.author || 'Unknown',
-        });
+      const result = await response.json();
+      if (!result || result.error || !result.data) {
+        throw new Error(result?.error || 'Invalid quote payload');
       }
+
+      setQuote({
+        text: result.data.text,
+        author: result.data.author || 'Unknown',
+      });
     } catch (err) {
       console.error('Failed to fetch quote:', err);
+      setQuote({
+        text: 'Stay positive, work hard, make it happen.',
+        author: 'Unknown',
+      });
     }
   }
 

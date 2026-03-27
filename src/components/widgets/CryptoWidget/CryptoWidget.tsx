@@ -36,24 +36,9 @@ export default function CryptoWidget() {
   const [error, setError] = useState<string | null>(null);
 
   async function resolveCryptoId(symbol: string) {
+    // With the backend API proxy, we can avoid direct coingecko calls from the client.
     const key = symbol.toUpperCase();
     if (cryptoIdMap[key]) return cryptoIdMap[key];
-    try {
-      // Call CoinGecko directly instead of backend
-      const q = encodeURIComponent(symbol);
-      const res = await fetch(`https://api.coingecko.com/api/v3/search?query=${q}`);
-      if (!res.ok) return null;
-      const js = await res.json();
-      const coins = js?.coins || [];
-      const match = coins.find((c: any) => c.symbol && c.symbol.toLowerCase() === symbol.toLowerCase());
-      if (match) {
-        const id = match.id;
-        setCryptoIdMap(prev => ({ ...prev, [key]: id }));
-        return id;
-      }
-    } catch (err) {
-      // ignore
-    }
     return null;
   }
 
@@ -161,15 +146,19 @@ export default function CryptoWidget() {
       try {
         let response;
         if (mode === 'crypto') {
-          // Call CoinGecko directly instead of backend (avoids Vercel IP blocking)
-          const ids = symbols.map(s => cryptoIdMap[s.toUpperCase()] || s.toLowerCase()).filter(Boolean).join(',');
-          const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=usd&include_24hr_change=true`;
+          const ids = symbols.join(',');
+          const url = `/api/crypto?ids=${encodeURIComponent(ids)}`;
           response = await fetch(url);
           if (response.ok) {
-            const priceData = await response.json();
+            const json = await response.json();
             if (mounted) {
-              setData({ data: priceData });
-              setError(null);
+              if (json?.error) {
+                setError(json.error);
+                setData(null);
+              } else {
+                setData({ data: json.data || {} });
+                setError(null);
+              }
             }
           } else {
             if (mounted) setError('Failed to fetch crypto prices');
@@ -205,8 +194,9 @@ export default function CryptoWidget() {
 
   const getPriceData = (symbol: string) => {
     if (mode === 'crypto') {
-      const id = cryptoIdMap[symbol.toUpperCase()] || symbol.toLowerCase();
-      const info = data?.data?.[id];
+      const idCandidates = [symbol, symbol.toUpperCase(), symbol.toLowerCase(), cryptoIdMap[symbol.toUpperCase()]]
+        .filter(Boolean) as string[];
+      const info = idCandidates.reduce<any>((acc, id) => acc || data?.data?.[id], null);
       return {
         price: typeof info?.usd === 'number' ? info.usd : undefined,
         change: typeof info?.usd_24h_change === 'number' ? info.usd_24h_change : undefined,

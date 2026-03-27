@@ -21,6 +21,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.google.gson.Gson
 import com.minimalnews.data.models.WeatherData
 import com.minimalnews.data.repository.Repository
 import com.minimalnews.ui.components.*
@@ -28,6 +29,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+
+private data class IpInfo(
+    val city: String?,
+    val region: String?,
+    @com.google.gson.annotations.SerializedName("country_name")
+    val countryName: String?,
+    val country: String?
+)
 
 @SuppressLint("MissingPermission")
 @Composable
@@ -54,6 +63,29 @@ fun WeatherWidgetComposable(repository: Repository) {
                 error = e.message ?: "Failed to load weather"
             }
             loading = false
+        }
+    }
+
+    suspend fun locateByIp(): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val data = java.net.URL("https://ipapi.co/json/").readText()
+                data.takeIf { it.isNotBlank() }?.let {
+                    data
+                } ?: null
+            } catch (e: Exception) {
+                null
+            }
+        }?.let { json ->
+            try {
+                val info = Gson().fromJson(json, IpInfo::class.java)
+                info.city?.takeIf { it.isNotBlank() }
+                    ?: info.region?.takeIf { it.isNotBlank() }
+                    ?: info.countryName?.takeIf { it.isNotBlank() }
+                    ?: info.country?.takeIf { it.isNotBlank() }
+            } catch (e: Exception) {
+                null
+            }
         }
     }
 
@@ -86,15 +118,29 @@ fun WeatherWidgetComposable(repository: Repository) {
                         loadWeather(cityName)
                     }
                 } else {
+                    val ipLocation = locateByIp()
                     withContext(Dispatchers.Main) {
+                        if (!ipLocation.isNullOrBlank()) {
+                            locationInput = ipLocation
+                            loadWeather(ipLocation)
+                            error = "Using IP fallback location: $ipLocation"
+                        } else {
+                            error = "Could not get location — enter city manually"
+                        }
                         locating = false
-                        error = "Could not get location — enter city manually"
                     }
                 }
             } catch (e: Exception) {
+                val ipLocation = locateByIp()
                 withContext(Dispatchers.Main) {
+                    if (!ipLocation.isNullOrBlank()) {
+                        locationInput = ipLocation
+                        loadWeather(ipLocation)
+                        error = "Using IP fallback location: $ipLocation"
+                    } else {
+                        error = "Location error: ${e.message}"
+                    }
                     locating = false
-                    error = "Location error: ${e.message}"
                 }
             }
         }
@@ -103,8 +149,25 @@ fun WeatherWidgetComposable(repository: Repository) {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
-        if (grants.values.any { it }) autoDetectLocation()
-        else error = "Location permission denied — enter city manually"
+        if (grants.values.any { it }) {
+            autoDetectLocation()
+        } else {
+            locating = true
+            error = null
+            scope.launch {
+                val ipLocation = locateByIp()
+                withContext(Dispatchers.Main) {
+                    if (!ipLocation.isNullOrBlank()) {
+                        locationInput = ipLocation
+                        loadWeather(ipLocation)
+                        error = "Location permission denied — using IP fallback: $ipLocation"
+                    } else {
+                        error = "Location permission denied — enter city manually"
+                    }
+                    locating = false
+                }
+            }
+        }
     }
 
     // Load saved location on first composition
