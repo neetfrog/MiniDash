@@ -11,6 +11,8 @@ const DEFAULT_ZONES: string[] = [
   'Asia/Tokyo',
 ];
 
+const STORAGE_KEY = 'minidash-world-clocks';
+
 const PRESET_ZONES = [
   { label: 'UTC / GMT', value: 'UTC' },
   { label: 'Lithuania', value: 'Europe/Vilnius' },
@@ -148,6 +150,24 @@ export default function WorldClocksWidget() {
   const [is24Hour, setIs24Hour] = useState(true);
 
   const availablePresets = PRESET_ZONES.filter((option) => !zones.includes(option.value));
+
+  useEffect(() => {
+    const storedZones = localStorage.getItem(STORAGE_KEY);
+    if (storedZones) {
+      try {
+        const parsed = JSON.parse(storedZones);
+        if (Array.isArray(parsed) && parsed.every((zone) => typeof zone === 'string')) {
+          setZones(parsed.length > 0 ? parsed : DEFAULT_ZONES);
+        }
+      } catch {
+        // ignore invalid storage data
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(zones));
+  }, [zones]);
 
   useEffect(() => {
     if (availablePresets.length === 0) {

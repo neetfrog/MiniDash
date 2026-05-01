@@ -37,6 +37,10 @@ const COMMANDS = [
   'hackernews - Get Hacker News top stories',
   'trending - Get trending topics',
   'quote - Get random quote',
+  'neofetch - Show browser system info',
+  'todo - Show your todo list',
+  'crypto [symbols] - Get crypto prices for symbols (default BTC,ETH,SOL,DOGE)',
+  'stocks [symbols] - Get stock quotes for symbols (default AAPL)',
   'theme [name] - Change theme (dark, light)',
   'clear - Clear terminal',
   'exit - Close CLI',
@@ -55,10 +59,14 @@ const COMMAND_ALIASES: Record<string, string> = {
   ls: 'list',
   t: 'trending',
   hn: 'hackernews',
+  c: 'crypto',
+  s: 'stocks',
+  nf: 'neofetch',
+  td: 'todo',
   e: 'exit',
 };
 
-const COMMAND_NAMES = ['help', 'weather', 'news', 'reddit', 'hackernews', 'trending', 'quote', 'theme', 'clear', 'exit', 'enable', 'disable', 'toggle', 'list'];
+const COMMAND_NAMES = ['help', 'weather', 'news', 'reddit', 'hackernews', 'trending', 'quote', 'neofetch', 'todo', 'crypto', 'stocks', 'theme', 'clear', 'exit', 'enable', 'disable', 'toggle', 'list'];
 const WIDGET_NAMES = ['weather', 'news', 'reddit', 'hackernews', 'trending', 'quote', 'crypto', 'clocks', 'todo', 'systeminfo'];
 
 export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineProps) {
@@ -114,11 +122,23 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
 
   const runAsyncCommand = useCallback(async (id: string, command: string, args: string[]) => {
     try {
-      let result: string;
+      let result: string | { output: string; type?: CommandLineHistoryItem['type'] };
 
       switch (command) {
         case 'weather':
           result = await commandUtils.fetchWeather(args.join(' '));
+          break;
+        case 'crypto':
+          result = await commandUtils.fetchCrypto(args.join(' ') || 'BTC,ETH,SOL,DOGE');
+          break;
+        case 'stocks':
+          result = await commandUtils.fetchStocks(args.join(' ') || 'AAPL');
+          break;
+        case 'neofetch':
+          result = await commandUtils.fetchNeofetch();
+          break;
+        case 'todo':
+          result = await commandUtils.fetchTodo();
           break;
         case 'news':
           result = await commandUtils.fetchNews(args[0] || 'general');
@@ -140,13 +160,16 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
           return;
       }
 
+      const output = typeof result === 'string' ? result : result.output;
+      const outputType = typeof result === 'string' ? 'success' : (result.type || 'success');
+
       setHistory(prev => prev.map(h => h.id === id ? {
         ...h,
         pending: false,
         pendingCommand: undefined,
         pendingArgs: undefined,
       } : h));
-      addToHistory('', result, 'success');
+      addToHistory('', output, outputType);
       onCommand(command, args);
     } catch (err) {
       setHistory(prev => prev.map(h => h.id === id ? {
@@ -180,6 +203,37 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
       runAsyncCommand(id, pending.command, pending.args);
     }
   }, [runAsyncCommand]);
+
+  const renderFormattedOutput = (output: string) => {
+    const parts = output.split(/(\[\[(?:red|green)\]\]|\[\[\/(?:red|green)\]\])/g);
+    let highlight: 'red' | 'green' | null = null;
+    return parts.map((part, idx) => {
+      if (part === '[[red]]') {
+        highlight = 'red';
+        return null;
+      }
+      if (part === '[[green]]') {
+        highlight = 'green';
+        return null;
+      }
+      if (part === '[[/red]]' || part === '[[/green]]') {
+        highlight = null;
+        return null;
+      }
+      return (
+        <span
+          key={idx}
+          className={
+            highlight === 'red' ? styles.textError :
+            highlight === 'green' ? styles.textSuccess :
+            undefined
+          }
+        >
+          {part}
+        </span>
+      );
+    });
+  };
 
   const parseCommand = useCallback((command: string) => {
     const parts = command.trim().split(/\s+/);
@@ -219,6 +273,18 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
 
       case 'quote':
         return { output: 'Fetching random quote...', async: { command: 'quote', args: [] } };
+
+      case 'neofetch':
+        return { output: 'Gathering system info...', async: { command: 'neofetch', args: [] } };
+
+      case 'todo':
+        return { output: 'Loading todo list...', async: { command: 'todo', args: [] } };
+
+      case 'crypto':
+        return { output: `Fetching crypto prices for ${args.length ? args.join(' ') : 'BTC,ETH,SOL,DOGE'}...`, async: { command: 'crypto', args } };
+
+      case 'stocks':
+        return { output: `Fetching stock quotes for ${args.length ? args.join(' ') : 'AAPL'}...`, async: { command: 'stocks', args } };
 
       case 'enable':
         if (!args.length) {
@@ -385,7 +451,7 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
           <button className={styles.close} onClick={onClose}>✕</button>
         </div>
 
-        <div className={styles.terminal} ref={terminalRef}>
+        <div className={styles.terminal} ref={terminalRef} onClick={() => inputRef.current?.focus()}>
           {history.map((item) => {
             const outputClass =
               item.type === 'error' ? `${styles.output} ${styles.error}` :
@@ -410,18 +476,24 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
                 {item.output && (
                   <div className={outputClass}>
                     {item.type === 'loading' && <span className={styles.spinner}>◐</span>}
-                    <TypingAnimation
-                      text={item.output}
-                      speed={item.speed ?? 10}
-                      delay={item.delay ?? (item.command ? 50 : 0)}
-                      className={textClass}
-                      onUpdate={() => {
-                        if (terminalRef.current) {
-                          terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-                        }
-                      }}
-                      onComplete={() => markHistoryTypingComplete(item.id)}
-                    />
+                    {item.output.includes('[[red]]') ? (
+                      <span className={styles.textInfo}>
+                        {renderFormattedOutput(item.output)}
+                      </span>
+                    ) : (
+                      <TypingAnimation
+                        text={item.output}
+                        speed={item.speed ?? 10}
+                        delay={item.delay ?? (item.command ? 50 : 0)}
+                        className={textClass}
+                        onUpdate={() => {
+                          if (terminalRef.current) {
+                            terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+                          }
+                        }}
+                        onComplete={() => markHistoryTypingComplete(item.id)}
+                      />
+                    )}
                   </div>
                 )}
               </div>
