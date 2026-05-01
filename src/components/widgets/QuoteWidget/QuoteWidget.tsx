@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { QuoteOfTheDay, ApiResponse } from '@/types/api';
+import { Copy } from 'lucide-react';
 import styles from './QuoteWidget.module.css';
 
 export default function QuoteWidget() {
@@ -59,7 +60,7 @@ export default function QuoteWidget() {
             ↻
           </button>
           <button onClick={copyQuote} className={styles.iconButton} aria-label="Copy Quote">
-            📋
+            <Copy size={12} />
           </button>
         </div>
       </div>
