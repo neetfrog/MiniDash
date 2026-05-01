@@ -4,7 +4,7 @@ import styles from './TerminalBox.module.css';
 
 interface TerminalBoxProps {
   title: string;
-  icon?: string;
+  icon?: ReactNode;
   children: ReactNode;
   status?: string;
   loading?: boolean;

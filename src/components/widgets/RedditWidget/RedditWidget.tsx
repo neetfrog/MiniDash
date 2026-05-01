@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { RedditPost, ApiResponse } from '@/types/api';
 import TerminalBox from '@/components/ui/TerminalBox';
+import { MessageCircle } from 'lucide-react';
 import styles from './RedditWidget.module.css';
 
 const SUBREDDITS = ['all', 'programming', 'technology', 'science', 'worldnews', 'todayilearned'];
@@ -130,7 +131,7 @@ export default function RedditWidget({ subreddit: initialSubreddit = 'all' }: Re
   return (
     <TerminalBox
       title={`reddit --r/${subreddit}`}
-      icon="🔥"
+      icon={<MessageCircle size={14} />}
       status={`${posts.length} posts`}
       loading={loading}
       error={loading ? null : error}

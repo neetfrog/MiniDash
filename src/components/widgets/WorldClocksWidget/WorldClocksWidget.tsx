@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Clock } from 'lucide-react';
 import TerminalBox from '@/components/ui/TerminalBox';
 import styles from './WorldClocksWidget.module.css';
 
@@ -229,7 +230,7 @@ export default function WorldClocksWidget() {
   const statusText = now ? `Local time: ${now.toLocaleTimeString()}` : 'Local time: --:--:--';
 
   return (
-    <TerminalBox title="clocks --world" icon="🕒" status={statusText}>
+    <TerminalBox title="clocks --world" icon={<Clock size={14} />} status={statusText}>
       <div className={styles.container}>
         <div className={styles.controls}>
           <select className={styles.select} value={selectedPreset} onChange={(e) => setSelectedPreset(e.target.value)} disabled={availablePresets.length === 0}>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { SocialTrending, ApiResponse } from '@/types/api';
 import TerminalBox from '@/components/ui/TerminalBox';
+import { TrendingUp } from 'lucide-react';
 import styles from './TrendingWidget.module.css';
 
 function formatNumber(num: number): string {
@@ -60,7 +61,7 @@ export default function TrendingWidget() {
   return (
     <TerminalBox
       title="trending --social"
-      icon="📈"
+      icon={<TrendingUp size={18} />}
       status="live"
       loading={loading}
       error={loading ? null : error}

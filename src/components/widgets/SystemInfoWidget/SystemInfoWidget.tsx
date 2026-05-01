@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import TerminalBox from '@/components/ui/TerminalBox';
+import { Cpu } from 'lucide-react';
 import styles from './SystemInfoWidget.module.css';
 
 const DEFAULT_ASCII_ART = `
@@ -231,7 +232,7 @@ export default function SystemInfoWidget() {
   return (
     <TerminalBox
       title="neofetch"
-      icon="💻"
+      icon={<Cpu size={14} />}
       status={`Uptime: ${formatUptime(uptime)}`}
     >
       <div className={styles.container}>

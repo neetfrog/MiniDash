@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { DollarSign } from 'lucide-react';
 import TerminalBox from '@/components/ui/TerminalBox';
 import styles from './CryptoWidget.module.css';
 
@@ -255,7 +256,7 @@ export default function CryptoWidget() {
   };
 
   return (
-    <TerminalBox title={`${mode} --prices [${selectedPeriods.join(',')}]`} icon="💱" status={data ? `Updated: ${new Date().toLocaleTimeString()}` : ''} loading={loading} error={loading ? null : error}>
+    <TerminalBox title={`${mode} --prices [${selectedPeriods.join(',')}]`} icon={<DollarSign size={14} />} status={data ? `Updated: ${new Date().toLocaleTimeString()}` : ''} loading={loading} error={loading ? null : error}>
       <div className={styles.container}>
         <div className={styles.headerLine}>
           $ {symbols.join(', ')}

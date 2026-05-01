@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import type { HackerNewsItem } from '@/types/api';
 import TerminalBox from '@/components/ui/TerminalBox';
+import { Zap } from 'lucide-react';
 import styles from './HackerNewsWidget.module.css';
 
 const STORY_TYPES = ['top', 'new', 'best', 'ask', 'show'];
@@ -100,7 +101,7 @@ export default function HackerNewsWidget() {
   return (
     <TerminalBox
       title={`hackernews --${storyType}`}
-      icon="🔶"
+      icon={<Zap size={18} />}
       status={`${stories?.length || 0} stories`}
       loading={loading}
       error={loading ? null : error}

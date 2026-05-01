@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { WeatherData } from '@/types/api';
 import TerminalBox from '@/components/ui/TerminalBox';
+import { Cloud } from 'lucide-react';
 import { useWidgetData, useWidgetProps } from '@/hooks/useWidget';
 import styles from './WeatherWidget.module.css';
 
@@ -207,7 +208,7 @@ export default function WeatherWidget() {
   return (
     <TerminalBox
       title="weather --location"
-      icon="☁"
+      icon={<Cloud size={14} />}
       status={status}
       loading={loading}
       error={loading ? null : error}

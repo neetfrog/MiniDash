@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import type { NewsItem } from '@/types/api';
 import TerminalBox from '@/components/ui/TerminalBox';
+import { Newspaper } from 'lucide-react';
 import { useWidgetData, useWidgetProps } from '@/hooks/useWidget';
 import styles from './NewsWidget.module.css';
 
@@ -59,7 +60,7 @@ export default function NewsWidget({ category: initialCategory = 'all' }: NewsWi
   return (
     <TerminalBox
       title="news --headlines"
-      icon="📰"
+      icon={<Newspaper size={18} />}
       status={`${news?.length || 0} articles`}
       loading={loading}
       error={loading ? null : error}

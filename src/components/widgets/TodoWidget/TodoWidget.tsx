@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { CheckSquare } from 'lucide-react';
 import TerminalBox from '@/components/ui/TerminalBox';
 import styles from './TodoWidget.module.css';
 
@@ -64,7 +65,7 @@ export default function TodoWidget() {
   return (
     <TerminalBox
       title="todo --list"
-      icon="📝"
+      icon={<CheckSquare size={14} />}
       status={`${completedCount}/${totalCount} completed`}
     >
       <div className={styles.container}>
