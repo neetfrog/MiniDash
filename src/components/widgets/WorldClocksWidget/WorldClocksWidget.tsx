@@ -12,6 +12,7 @@ const DEFAULT_ZONES: string[] = [
 ];
 
 const PRESET_ZONES = [
+  { label: 'UTC / GMT', value: 'UTC' },
   { label: 'Lithuania', value: 'Europe/Vilnius' },
   { label: 'United States (East)', value: 'America/New_York' },
   { label: 'United States (West)', value: 'America/Los_Angeles' },
@@ -99,6 +100,27 @@ function getDayNightIndicator(date: Date, timeZone: string) {
   return hour >= 6 && hour < 18 ? 'day' : 'night';
 }
 
+function getZoneTimeValue(date: Date, timeZone: string) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      timeZone,
+    }).formatToParts(date);
+
+    const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? '0');
+    const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? '0');
+    const second = Number(parts.find((part) => part.type === 'second')?.value ?? '0');
+
+    return hour * 3600 + minute * 60 + second;
+  } catch {
+    const fallback = new Date(date);
+    return fallback.getHours() * 3600 + fallback.getMinutes() * 60 + fallback.getSeconds();
+  }
+}
+
 function formatTime(date: Date, timeZone: string, is24Hour: boolean) {
   const options = {
     hour: '2-digit',
@@ -177,6 +199,13 @@ export default function WorldClocksWidget() {
     zone.replace(/_/g, ' ').replace(/\//g, ' / ');
 
   const activeNow = now;
+  const sortedZones = activeNow
+    ? [...zones]
+        .map((zone, index) => ({ zone, index, value: getZoneTimeValue(activeNow, zone) }))
+        .sort((a, b) => (a.value === b.value ? a.index - b.index : a.value - b.value))
+        .map((entry) => entry.zone)
+    : zones;
+
   const statusText = now ? `Updated: ${now.toLocaleTimeString()}` : 'Updated: --:--:--';
 
   return (
@@ -204,7 +233,7 @@ export default function WorldClocksWidget() {
           {zones.length === 0 ? (
             <div className={styles.empty}>Add timezones to display clocks</div>
           ) : (
-            zones.map((z) => {
+            sortedZones.map((z) => {
               const indicatorMode = activeNow ? getDayNightIndicator(activeNow, z) : 'day';
               return (
                 <div key={z} className={styles.row}>
