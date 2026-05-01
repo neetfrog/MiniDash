@@ -79,7 +79,6 @@ async function fetchTwitterTrending(): Promise<SocialTrending['twitter']> {
           id: trendName,
           name: trendName,
           category: 'Trending',
-          volume: 0, // Volume not easily available on this site
           url: `https://twitter.com/search?q=${encodeURIComponent(trendName)}`,
         });
       }

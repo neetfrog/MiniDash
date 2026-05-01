@@ -110,9 +110,8 @@ export default function TrendingWidget() {
                     >
                       {topic.name}
                     </a>
-                    <span className={styles.category}>{topic.category}</span>
                   </div>
-                  {topic.volume && (
+                  {typeof topic.volume === 'number' && topic.volume > 0 && (
                     <span className={styles.volume}>{formatNumber(topic.volume)} posts</span>
                   )}
                 </li>
