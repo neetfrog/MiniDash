@@ -49,6 +49,24 @@ function getOsAsciiArt(os: string) {
   return DEFAULT_ASCII_ART;
 }
 
+function simplifyGpuRenderer(renderer: string, vendor: string) {
+  const value = (renderer || '').trim();
+  if (!value) return 'Unavailable';
+
+  const angleMatch = value.match(/^ANGLE \(([^,]+),\s*([^,]+)(?:,.*)?\)$/i);
+  if (angleMatch) {
+    let gpuName = angleMatch[2];
+    gpuName = gpuName.replace(/\s*\([^)]*\)/g, '').replace(/\s+(Direct3D|OpenGL|Vulkan|Metal).*$/i, '').trim();
+    return gpuName || angleMatch[1] || vendor || 'Unknown';
+  }
+
+  if (vendor && value.toLowerCase().startsWith(vendor.toLowerCase())) {
+    return value.substring(vendor.length).trim() || value;
+  }
+
+  return value;
+}
+
 function getWebGLInfo() {
   try {
     const canvas = document.createElement('canvas');
@@ -185,7 +203,7 @@ export default function SystemInfoWidget() {
 
     // GPU
     const info = getWebGLInfo();
-    setGpu(`${info.renderer} (${info.vendor})`);
+    setGpu(simplifyGpuRenderer(info.renderer, info.vendor));
 
     // CPU model / architecture (best-effort using User-Agent Client Hints)
     const uaData = (navigator as any).userAgentData;
