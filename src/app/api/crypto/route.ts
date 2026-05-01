@@ -185,8 +185,8 @@ export async function GET(request: Request) {
       const pd = priceData[id] || {};
       return {
         id: token,
-        usd: pd?.usd ?? 0,
-        usd_24h_change: typeof pd?.usd_24h_change === 'number' ? pd.usd_24h_change : 0,
+        usd: typeof pd?.usd === 'number' ? pd.usd : undefined,
+        usd_24h_change: typeof pd?.usd_24h_change === 'number' ? pd.usd_24h_change : undefined,
         change1w: typeof pd?.change1w === 'number' ? pd.change1w : undefined,
         change1m: typeof pd?.change1m === 'number' ? pd.change1m : undefined,
         last_updated_at: pd?.last_updated_at || new Date().toISOString(),

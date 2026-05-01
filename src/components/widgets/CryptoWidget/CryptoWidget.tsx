@@ -133,6 +133,10 @@ export default function CryptoWidget() {
   useEffect(() => {
     let mounted = true;
 
+    if (mode !== 'crypto') {
+      return () => { mounted = false; };
+    }
+
     async function fetchData() {
       if (symbols.length === 0) {
         setLoading(false);
@@ -144,40 +148,65 @@ export default function CryptoWidget() {
       setLoading(true);
       setError(null);
       try {
-        let response;
-        if (mode === 'crypto') {
-          const ids = symbols.join(',');
-          const url = `/api/crypto?ids=${encodeURIComponent(ids)}`;
-          response = await fetch(url);
-          if (response.ok) {
-            const json = await response.json();
-            if (mounted) {
-              if (json?.error) {
-                setError(json.error);
-                setData(null);
-              } else {
-                setData({ data: json.data || {} });
-                setError(null);
-              }
-            }
-          } else {
-            if (mounted) setError('Failed to fetch crypto prices');
-          }
-        } else {
-          // Stocks still use backend (for now, as they use a stock API that requires proxying)
-          const url = `/api/stocks?symbols=${symbols.join(',')}&periods=${selectedPeriods.join(',')}`;
-          response = await fetch(url);
+        const ids = symbols.join(',');
+        const url = `/api/crypto?ids=${encodeURIComponent(ids)}`;
+        const response = await fetch(url);
+        if (response.ok) {
           const json = await response.json();
           if (mounted) {
-            setData(json);
             if (json?.error) {
               setError(json.error);
+              setData(null);
             } else {
+              setData({ data: json.data || {} });
               setError(null);
             }
-            if (!response.ok && !json?.error) {
-              setError('Failed to fetch prices');
-            }
+          }
+        } else {
+          if (mounted) setError('Failed to fetch crypto prices');
+        }
+      } catch (err) {
+        if (mounted) setError('Failed to fetch prices');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    fetchData();
+    const timer = setInterval(fetchData, 5 * 60 * 1000); // refresh every 5 minutes
+    return () => { mounted = false; clearInterval(timer); };
+  }, [symbols, mode]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    if (mode !== 'stocks') {
+      return () => { mounted = false; };
+    }
+
+    async function fetchData() {
+      if (symbols.length === 0) {
+        setLoading(false);
+        setError(null);
+        setData(null);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        const url = `/api/stocks?symbols=${symbols.join(',')}&periods=${selectedPeriods.join(',')}`;
+        const response = await fetch(url);
+        const json = await response.json();
+        if (mounted) {
+          setData(json);
+          if (json?.error) {
+            setError(json.error);
+          } else {
+            setError(null);
+          }
+          if (!response.ok && !json?.error) {
+            setError('Failed to fetch prices');
           }
         }
       } catch (err) {
