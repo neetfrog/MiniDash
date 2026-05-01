@@ -18,6 +18,17 @@ interface CommandHistory {
   timestamp: Date;
 }
 
+interface CommandLineHistoryItem extends CommandHistory {
+  id: string;
+  type?: 'info' | 'success' | 'error' | 'loading' | 'command';
+  isTypingComplete?: boolean;
+  speed?: number;
+  delay?: number;
+  pendingCommand?: string;
+  pendingArgs?: string[];
+  pending?: boolean;
+}
+
 const COMMANDS = [
   'help - Show available commands',
   'weather [location] - Get weather for location',
@@ -38,14 +49,19 @@ const COMMANDS = [
 export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineProps) {
   const { theme, setTheme, availableThemes } = useTheme();
   const [input, setInput] = useState('');
-  const [history, setHistory] = useState<CommandHistory[]>([]);
+  const [history, setHistory] = useState<CommandLineHistoryItem[]>([]);
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const [currentLine, setCurrentLine] = useState(0);
+  const [hideInput, setHideInput] = useState(false);
+  const [showPlaceholder, setShowPlaceholder] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      inputRef.current?.focus();
+      setHideInput(true);
+      setShowPlaceholder(true);
       setHistory([]);
       setCurrentLine(0);
       addToHistory('', 'MiniDash CLI v1.0.0\nType "help" for available commands.\n');
@@ -58,15 +74,12 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
     }
   }, [history]);
 
-  interface CommandHistory {
-    id: string;
-    command: string;
-    output: string;
-    timestamp: Date;
-    type?: 'info' | 'success' | 'error' | 'loading' | 'command';
-  }
+  useEffect(() => {
+    const hasIncomplete = history.some(item => item.isTypingComplete === false || item.pending);
+    setHideInput(hasIncomplete);
+  }, [history]);
 
-  const addToHistory = useCallback((command: string, output: string, type: CommandHistory['type'] = 'info') => {
+  const addToHistory = useCallback((command: string, output: string, type: CommandLineHistoryItem['type'] = 'info', extra: Partial<CommandLineHistoryItem> = {}) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setHistory(prev => [...prev, {
       id,
@@ -74,19 +87,17 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
       output,
       timestamp: new Date(),
       type,
+      isTypingComplete: false,
+      ...extra,
     }]);
     return id;
   }, []);
 
-  const updateHistory = useCallback((id: string, output: string, type?: CommandHistory['type']) => {
+  const updateHistory = useCallback((id: string, output: string, type?: CommandLineHistoryItem['type']) => {
     setHistory(prev => prev.map(h => h.id === id ? { ...h, output, type: type ?? h.type } : h));
   }, []);
 
-  // Perform the underlying API calls so the CLI shows results immediately
-  const runAsyncCommand = useCallback(async (command: string, args: string[]) => {
-    // Insert a loading line that we'll update later
-    const loadingId = addToHistory('', 'Loading...', 'loading');
-
+  const runAsyncCommand = useCallback(async (id: string, command: string, args: string[]) => {
     try {
       let result: string;
 
@@ -110,17 +121,50 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
           result = await commandUtils.fetchReddit(args[0] || 'all');
           break;
         default:
-          updateHistory(loadingId, `Unknown command: ${command}`, 'error');
+          addToHistory('', `Unknown command: ${command}`, 'error');
           return;
       }
 
-      updateHistory(loadingId, result, 'success');
-      // Propagate to widget
+      setHistory(prev => prev.map(h => h.id === id ? {
+        ...h,
+        pending: false,
+        pendingCommand: undefined,
+        pendingArgs: undefined,
+      } : h));
+      addToHistory('', result, 'success');
       onCommand(command, args);
     } catch (err) {
-      updateHistory(loadingId, `Error fetching ${command}: ${(err as Error).message}`, 'error');
+      setHistory(prev => prev.map(h => h.id === id ? {
+        ...h,
+        pending: false,
+        pendingCommand: undefined,
+        pendingArgs: undefined,
+      } : h));
+      addToHistory('', `Error fetching ${command}: ${(err as Error).message}`, 'error');
     }
-  }, [addToHistory, updateHistory, onCommand]);
+  }, [addToHistory, onCommand]);
+
+  const markHistoryTypingComplete = useCallback((id: string) => {
+    let pending: { command: string; args: string[] } | undefined;
+    setHistory(prev => {
+      const next = prev.map(h => {
+        if (h.id !== id) return h;
+        if (h.pendingCommand) {
+          pending = { command: h.pendingCommand, args: h.pendingArgs || [] };
+        }
+        return {
+          ...h,
+          isTypingComplete: true,
+          pending: !!h.pendingCommand,
+        };
+      });
+      return next;
+    });
+
+    if (pending) {
+      runAsyncCommand(id, pending.command, pending.args);
+    }
+  }, [runAsyncCommand]);
 
   const parseCommand = useCallback((command: string) => {
     const parts = command.trim().split(/\s+/);
@@ -214,29 +258,70 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
     const command = input.trim();
     const result = parseCommand(command);
 
+    let historyId: string | null = null;
     if (result.output) {
-      addToHistory(command, result.output);
+      setHideInput(true);
+      setShowPlaceholder(false);
+      historyId = addToHistory(command, result.output, 'info');
     }
 
-    if (result.command) {
+    if (!result.async && result.command) {
       onCommand(result.command, result.args || []);
     }
 
+    if (result.async && historyId) {
+      const { command: pendingCommand, args: pendingArgs } = result.async;
+      setHistory(prev => prev.map(h => h.id === historyId ? {
+        ...h,
+        pendingCommand,
+        pendingArgs,
+      } : h));
+    }
+
+    setCommandHistory(prev => [...prev, command]);
+    setHistoryIndex(-1);
     setInput('');
     setCurrentLine(history.length + 1);
-
-    if (result.async) {
-      // Notify widgets and start async work AFTER adding the command to history
-      onCommand(result.async.command, result.async.args);
-      runAsyncCommand(result.async.command, result.async.args);
-    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       onClose();
+      return;
+    }
+
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (commandHistory.length === 0) return;
+
+      setHistoryIndex((prevIndex) => {
+        const nextIndex = e.key === 'ArrowUp'
+          ? (prevIndex === -1 ? commandHistory.length - 1 : Math.max(0, prevIndex - 1))
+          : (prevIndex === -1 ? -1 : prevIndex + 1);
+
+        if (e.key === 'ArrowDown' && nextIndex >= commandHistory.length) {
+          setInput('');
+          return -1;
+        }
+
+        if (nextIndex === -1) {
+          setInput('');
+          return -1;
+        }
+
+        setInput(commandHistory[nextIndex]);
+        return nextIndex;
+      });
     }
   };
+
+  const showInput = !hideInput;
+
+  useEffect(() => {
+    if (showInput && isOpen) {
+      inputRef.current?.focus();
+    }
+  }, [showInput, isOpen]);
 
   if (!isOpen) return null;
 
@@ -244,10 +329,6 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <div className={styles.title}>
-            <span className={styles.icon}>▸</span>
-            <span>Terminal CLI</span>
-          </div>
           <button className={styles.close} onClick={onClose}>✕</button>
         </div>
 
@@ -278,9 +359,10 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
                     {item.type === 'loading' && <span className={styles.spinner}>◐</span>}
                     <TypingAnimation
                       text={item.output}
-                      speed={20}
-                      delay={item.command ? 100 : 0}
+                      speed={item.speed ?? 20}
+                      delay={item.delay ?? (item.command ? 100 : 0)}
                       className={textClass}
+                      onComplete={() => markHistoryTypingComplete(item.id)}
                     />
                   </div>
                 )}
@@ -288,19 +370,24 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
             );
           })}
 
-          <form onSubmit={handleSubmit} className={styles.inputForm}>
-            <span className={styles.prompt}>$</span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a command..."
-              className={styles.input}
-              autoComplete="off"
-            />
-          </form>
+          {showInput && (
+            <form onSubmit={handleSubmit} className={styles.inputForm}>
+              <span className={styles.prompt}>$</span>
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  setHistoryIndex(-1);
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder={showPlaceholder ? 'Type a command...' : ''}
+                className={styles.input}
+                autoComplete="off"
+              />
+            </form>
+          )}
         </div>
       </div>
     </div>
