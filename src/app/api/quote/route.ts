@@ -3,8 +3,8 @@ import type { QuoteOfTheDay, ApiResponse } from '@/types/api';
 
 export async function GET() {
   try {
-    // Use Type.fit API for quotes
-    const response = await fetch('https://type.fit/api/quotes');
+    // Use Type.fit API for quotes and avoid caching the external response to keep quotes fresh.
+    const response = await fetch('https://type.fit/api/quotes', { cache: 'no-store' });
 
     if (!response.ok) {
       throw new Error('Quote service unavailable');

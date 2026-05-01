@@ -181,6 +181,8 @@ async function getStorageStatus() {
 }
 
 const TODO_STORAGE_KEY = 'minimalstuff-todos';
+const CLOCKS_STORAGE_KEY = 'minidash-world-clocks';
+const DEFAULT_CLOCK_ZONES = ['UTC', 'America/New_York', 'Europe/London', 'Asia/Tokyo'];
 
 async function getConnectionInfo() {
   if (typeof navigator === 'undefined') return 'Unavailable';
@@ -194,12 +196,69 @@ async function getConnectionInfo() {
 }
 
 function getTodoList() {
-  if (typeof localStorage === 'undefined') return null;
+  if (typeof localStorage === 'undefined') return [];
   try {
     const payload = localStorage.getItem(TODO_STORAGE_KEY);
     return payload ? JSON.parse(payload) as { id: string; text: string; completed: boolean }[] : [];
   } catch {
-    return null;
+    return [];
+  }
+}
+
+function saveTodoList(todos: { id: string; text: string; completed: boolean }[]) {
+  if (typeof localStorage === 'undefined') return todos;
+  try {
+    localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(todos));
+  } catch {
+    // ignore
+  }
+  return todos;
+}
+
+function getClockZones() {
+  if (typeof localStorage === 'undefined') return DEFAULT_CLOCK_ZONES;
+  try {
+    const payload = localStorage.getItem(CLOCKS_STORAGE_KEY);
+    if (!payload) return DEFAULT_CLOCK_ZONES;
+    const parsed = JSON.parse(payload);
+    if (Array.isArray(parsed) && parsed.every((zone) => typeof zone === 'string')) {
+      return parsed.length > 0 ? parsed : DEFAULT_CLOCK_ZONES;
+    }
+  } catch {
+    // ignore invalid storage data
+  }
+  return DEFAULT_CLOCK_ZONES;
+}
+
+function normalizeClockTimeZone(timeZone: string) {
+  const cleaned = timeZone.trim().replace(/\s+/g, '_');
+  if (!cleaned) return null;
+  const zones = getClockZones();
+  const lower = cleaned.toLowerCase();
+
+  const exact = zones.find((zone) => zone.toLowerCase() === lower);
+  if (exact) return exact;
+
+  const suffix = zones.find((zone) => zone.toLowerCase().endsWith(`/${lower}`));
+  if (suffix) return suffix;
+
+  const fuzzy = zones.find((zone) => zone.toLowerCase().replace(/[_/]+/g, ' ').includes(lower.replace(/[_/]+/g, ' ')));
+  if (fuzzy) return fuzzy;
+
+  return cleaned;
+}
+
+function formatZoneTime(date: Date, timeZone: string) {
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone,
+    }).format(date);
+  } catch {
+    return date.toLocaleTimeString('en-US', { hour12: false });
   }
 }
 
@@ -344,8 +403,70 @@ export const commandUtils = {
     if (todos.length === 0) {
       return 'Your todo list is empty.';
     }
-    const lines = todos.map((todo) => `- [${todo.completed ? 'x' : ' '}] ${todo.text}`);
+    const lines = todos.map((todo, index) => `${index + 1}. [${todo.completed ? 'x' : ' '}] ${todo.text}`);
     return `Your todo list:\n${lines.join('\n')}`;
+  },
+
+  async addTodo(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return 'Usage: todo add [task]';
+    }
+    const todos = getTodoList();
+    const newTodo = {
+      id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      text: trimmed,
+      completed: false,
+    };
+    saveTodoList([...todos, newTodo]);
+    return `Added todo: ${trimmed}`;
+  },
+
+  async completeTodo(index: number) {
+    const todos = getTodoList();
+    if (todos.length === 0) {
+      return 'Your todo list is empty.';
+    }
+    if (Number.isNaN(index) || index < 1 || index > todos.length) {
+      return `Invalid todo index. Use a number between 1 and ${todos.length}.`;
+    }
+    todos[index - 1].completed = true;
+    saveTodoList(todos);
+    return `Marked todo #${index} as done: ${todos[index - 1].text}`;
+  },
+
+  async removeTodo(index: number) {
+    const todos = getTodoList();
+    if (todos.length === 0) {
+      return 'Your todo list is empty.';
+    }
+    if (Number.isNaN(index) || index < 1 || index > todos.length) {
+      return `Invalid todo index. Use a number between 1 and ${todos.length}.`;
+    }
+    const [removed] = todos.splice(index - 1, 1);
+    saveTodoList(todos);
+    return `Removed todo #${index}: ${removed.text}`;
+  },
+
+  async clearTodo() {
+    saveTodoList([]);
+    return 'Cleared all todos.';
+  },
+
+  async fetchClocks(location?: string) {
+    const zones = getClockZones();
+    const now = new Date();
+    if (location) {
+      const zone = normalizeClockTimeZone(location);
+      if (!zone) {
+        return `Timezone not found: ${location}`;
+      }
+      return `Time in ${zone}: ${formatZoneTime(now, zone)}`;
+    }
+    const lines = zones.map((zone) => `${zone}: ${formatZoneTime(now, zone)}`);
+    return `World clocks:\n${lines.join('\n')}`;
   },
 
   async fetchReddit(subreddit: string, limit = 5) {

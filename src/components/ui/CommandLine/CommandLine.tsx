@@ -36,14 +36,21 @@ const COMMANDS = [
   'reddit [subreddit] - Get posts from subreddit',
   'hackernews - Get Hacker News top stories',
   'trending - Get trending topics',
+  'clocks [timezone] - Show world clock times',
   'quote - Get random quote',
   'neofetch - Show browser system info',
+  'sys | sysinfo - Alias for neofetch',
   'todo - Show your todo list',
+  'todo add [task] - Add a todo item',
+  'todo done [index] - Mark a todo complete',
+  'todo remove [index] - Remove a todo item',
+  'todo clear - Clear all todos',
   'crypto [symbols] - Get crypto prices for symbols (default BTC,ETH,SOL,DOGE)',
   'stocks [symbols] - Get stock quotes for symbols (default AAPL)',
   'theme [name] - Change theme (dark, light)',
   'clear - Clear terminal',
   'exit - Close CLI',
+  'close - Close CLI',
   'enable [widget] - Enable/hide the widget section',
   'disable [widget] - Disable/hide the widget section',
   'toggle [widget] - Toggle widget section visibility',
@@ -64,9 +71,11 @@ const COMMAND_ALIASES: Record<string, string> = {
   nf: 'neofetch',
   td: 'todo',
   e: 'exit',
+  sys: 'neofetch',
+  sysinfo: 'neofetch',
 };
 
-const COMMAND_NAMES = ['help', 'weather', 'news', 'reddit', 'hackernews', 'trending', 'quote', 'neofetch', 'todo', 'crypto', 'stocks', 'theme', 'clear', 'exit', 'enable', 'disable', 'toggle', 'list'];
+const COMMAND_NAMES = ['help', 'weather', 'news', 'reddit', 'hackernews', 'trending', 'clocks', 'quote', 'neofetch', 'todo', 'crypto', 'stocks', 'theme', 'clear', 'exit', 'close', 'enable', 'disable', 'toggle', 'list'];
 const WIDGET_NAMES = ['weather', 'news', 'reddit', 'hackernews', 'trending', 'quote', 'crypto', 'clocks', 'todo', 'systeminfo'];
 
 export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineProps) {
@@ -138,7 +147,23 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
           result = await commandUtils.fetchNeofetch();
           break;
         case 'todo':
-          result = await commandUtils.fetchTodo();
+          {
+            const action = args[0]?.toLowerCase();
+            if (action === 'add') {
+              result = await commandUtils.addTodo(args.slice(1).join(' '));
+            } else if (action === 'done' || action === 'complete') {
+              result = await commandUtils.completeTodo(Number(args[1]));
+            } else if (action === 'remove') {
+              result = await commandUtils.removeTodo(Number(args[1]));
+            } else if (action === 'clear') {
+              result = await commandUtils.clearTodo();
+            } else {
+              result = await commandUtils.fetchTodo();
+            }
+          }
+          break;
+        case 'clocks':
+          result = await commandUtils.fetchClocks(args.join(' '));
           break;
         case 'news':
           result = await commandUtils.fetchNews(args[0] || 'general');
@@ -278,6 +303,28 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
         return { output: 'Gathering system info...', async: { command: 'neofetch', args: [] } };
 
       case 'todo':
+        if (args.length === 0) {
+          return { output: 'Loading todo list...', async: { command: 'todo', args: [] } };
+        }
+        if (args[0] === 'add') {
+          const task = args.slice(1).join(' ');
+          return { output: task ? `Adding todo: ${task}` : 'Usage: todo add [task]', async: { command: 'todo', args } };
+        }
+        if (['done', 'complete'].includes(args[0])) {
+          if (args.length < 2) {
+            return { output: 'Usage: todo done [index]' };
+          }
+          return { output: `Marking todo #${args[1]} as done...`, async: { command: 'todo', args } };
+        }
+        if (args[0] === 'remove') {
+          if (args.length < 2) {
+            return { output: 'Usage: todo remove [index]' };
+          }
+          return { output: `Removing todo #${args[1]}...`, async: { command: 'todo', args } };
+        }
+        if (args[0] === 'clear') {
+          return { output: 'Clearing all todos...', async: { command: 'todo', args } };
+        }
         return { output: 'Loading todo list...', async: { command: 'todo', args: [] } };
 
       case 'crypto':
@@ -285,6 +332,9 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
 
       case 'stocks':
         return { output: `Fetching stock quotes for ${args.length ? args.join(' ') : 'AAPL'}...`, async: { command: 'stocks', args } };
+
+      case 'clocks':
+        return { output: `Fetching clocks${args.length ? ` for ${args.join(' ')}` : ''}...`, async: { command: 'clocks', args } };
 
       case 'enable':
         if (!args.length) {
@@ -325,6 +375,7 @@ export default function CommandLine({ isOpen, onClose, onCommand }: CommandLineP
         return { output: '' };
 
       case 'exit':
+      case 'close':
         onClose();
         return { output: 'Goodbye!' };
 
